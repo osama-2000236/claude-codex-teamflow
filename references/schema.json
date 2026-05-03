@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/osama-2000236/claude-codex-teamflow/schema.json",
+  "title": "Codex Review Packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["goal", "plan_source", "changed_files", "diff_summary", "qa", "risks"],
+  "properties": {
+    "goal": {
+      "type": "string",
+      "description": "One paragraph stating what was implemented and why."
+    },
+    "plan_source": {
+      "type": "string",
+      "description": "Absolute path or quoted summary of the plan being implemented."
+    },
+    "changed_files": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "subsystem"],
+        "properties": {
+          "path": {"type": "string"},
+          "subsystem": {"type": "string"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "diff_summary": {
+      "type": "string",
+      "description": "Behavior-level description of the change. Not a raw patch dump."
+    },
+    "qa": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "result"],
+        "properties": {
+          "command": {"type": "string"},
+          "result": {"type": "string", "enum": ["pass", "fail", "skipped"]},
+          "evidence": {"type": "string"}
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Migrations, data changes, user-visible changes, or known regressions."
+    },
+    "questions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Blockers Codex could not resolve from the repo."
+    }
+  }
+}

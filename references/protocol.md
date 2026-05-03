@@ -17,13 +17,17 @@
 
 ## Review packet (required fields)
 
-- Goal — one paragraph.
-- Plan source — file path or quoted summary.
-- Changed files — grouped by subsystem.
-- Diff summary — behavior-level, not raw patch.
-- QA evidence — commands, pass/fail, skipped checks.
-- Risks — migrations, data changes, user-visible changes.
-- Questions — only blockers Codex could not resolve from the repo.
+Codex emits a fenced ```json block matching `references/schema.json`:
+
+- `goal` — one paragraph.
+- `plan_source` — file path or quoted summary.
+- `changed_files[]` — `{path, subsystem, note?}`, grouped by subsystem.
+- `diff_summary` — behavior-level, not raw patch.
+- `qa[]` — `{command, result: pass|fail|skipped, evidence?}`.
+- `risks[]` — migrations, data changes, user-visible changes.
+- `questions[]` — only blockers Codex could not resolve from the repo.
+
+Validate with: `python -c "import json,jsonschema; jsonschema.validate(json.load(open('packet.json')), json.load(open('references/schema.json')))"`.
 
 ## Claude response contract
 

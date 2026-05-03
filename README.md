@@ -1,35 +1,35 @@
 # Claude Codex Teamflow
 
-Codex skill for a Claude-led engineering workflow:
-
-1. Claude Code Opus creates or refines the plan.
-2. Codex implements the plan and runs QA.
-3. Claude Code Opus reviews the work.
-4. Codex repeats fixes until Claude explicitly says `APPROVED` or `LGTM`.
+Codex skill: Claude Code Opus plans + reviews, Codex implements + runs QA, loop continues until Claude returns `STATUS: APPROVED` (or `LGTM` in handoff mode). No commit without explicit user authorization.
 
 ## Install
 
-Copy this folder into your Codex skills directory:
-
 ```powershell
-Copy-Item -Recurse . C:\Users\osama\.codex\skills\claude-codex-teamflow
+Copy-Item -Recurse . $HOME\.codex\skills\claude-codex-teamflow
 ```
 
-Then invoke:
+Invoke: `Use $claude-codex-teamflow ...`
 
-```text
-Use $claude-codex-teamflow to run a Claude-led Codex implementation and review loop.
-```
+## Layout
 
-## Tools
+| Path | Purpose |
+|------|---------|
+| `SKILL.md` | Trigger doc + run command + hard rules |
+| `scripts/teamflow.py` | Writes 5 handoff files + `meta.json` to a run dir outside the repo |
+| `scripts/make_pipeline.py` | Emits an AgentFlow pipeline (`pipeline.py`) for the same loop |
+| `scripts/state.py` | `meta.json` reader/writer + state-machine helpers |
+| `references/protocol.md` | State machine, review-packet shape, response contract |
+| `references/templates.md` | Plan / implement / review / rework prompts |
+| `references/schema.json` | JSON schema for the Codex review packet |
 
-- `scripts/teamflow.py` creates structured handoff artifacts outside a repo.
-- `scripts/make_pipeline.py` generates an AgentFlow pipeline.
-- `references/protocol.md` defines the Claude approval gate.
-- `references/templates.md` contains reusable prompts.
-
-The skill works without a Claude CLI by using structured handoff files. If AgentFlow is installed, generated pipelines can be validated with:
+## Validate generated pipeline
 
 ```powershell
 agentflow validate path\to\pipeline.py
 ```
+
+Skip `agentflow doctor` and `check-local` on Windows (path-escape bugs).
+
+## Run dir contents
+
+`$HOME\.codex\teamflow\runs\<repo>-<hash>-<run_id>\` → `01-plan.md`, `02-codex-implementation.md`, `03-qa-report.md`, `04-claude-review.md`, `05-final-approval.md`, `meta.json`. Re-runs refuse to clobber unless `--force`.

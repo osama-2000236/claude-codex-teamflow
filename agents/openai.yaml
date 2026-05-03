@@ -1,4 +1,16 @@
 interface:
   display_name: "Claude ↔ Codex Teamflow"
-  short_description: "Plan, implement, review, repeat"
-  default_prompt: "Use $claude-codex-teamflow to run a Claude-led Codex implementation and review loop."
+  short_description: "Strict APPROVED/LGTM-gated Claude-Codex review loop"
+  default_prompt: |
+    Use $claude-codex-teamflow: Claude Code Opus plans and reviews, Codex
+    implements and runs QA, loop continues until Claude returns
+    `STATUS: APPROVED` or `STATUS: LGTM`. No commit without explicit user
+    authorization. Generates handoff files + optional AgentFlow pipeline.
+  tags:
+    - review-loop
+    - multi-agent
+    - approval-gating
+    - agentflow
+    - handoff
+    - codex
+    - claude-code-opus

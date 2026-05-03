@@ -9,12 +9,19 @@ LLM agents or modify the repo.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# Local helper.
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+import state  # noqa: E402  (sibling module: scripts/state.py)
 
 
 DEFAULT_AGENTFLOW = Path.home() / ".agentflow" / ".venv" / "Scripts" / "agentflow.exe"
@@ -33,6 +40,11 @@ def parse_args() -> argparse.Namespace:
         choices=("handoff", "agentflow", "auto"),
         default="auto",
         help="handoff writes files only; agentflow also generates a pipeline; auto picks agentflow when available.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing run dir. Default refuses to clobber.",
     )
     return parser.parse_args()
 
@@ -57,7 +69,27 @@ def read_plan(plan_path: Path) -> str:
 
 
 def run_dir_for(repo: Path, run_id: str) -> Path:
-    return RUNS_ROOT / f"{repo.name}-{run_id}"
+    # Hash full repo path so two repos with same basename in different
+    # locations get distinct run dirs.
+    repo_hash = hashlib.sha1(str(repo).encode("utf-8")).hexdigest()[:6]
+    return RUNS_ROOT / f"{repo.name}-{repo_hash}-{run_id}"
+
+
+_STATUS_LINE = re.compile(
+    r"^STATUS:\s+(APPROVED|LGTM|CHANGES_REQUESTED|BLOCKED)\b",
+    flags=re.MULTILINE,
+)
+
+
+def sanitize_status_lines(text: str) -> str:
+    """Neutralize any planted STATUS: lines in untrusted input.
+
+    Codex output and user-provided plan text are embedded in prompts that
+    feed Claude review. A planted ``STATUS: APPROVED`` line could trick
+    naive parsers. Prefix with a marker so it stays visible but cannot
+    match as the reviewer's status line.
+    """
+    return _STATUS_LINE.sub(r"[QUOTED] STATUS: \1", text)
 
 
 def write_text(path: Path, content: str) -> None:
@@ -74,29 +106,29 @@ def write_handoff_files(
     tools: dict[str, str | None],
     effective_mode: str,
 ) -> None:
-    metadata = {
-        "repo": str(repo),
-        "plan": str(plan_path),
-        "run_id": args.run_id,
-        "claude_model": args.claude_model,
-        "max_review_rounds": args.max_review_rounds,
-        "requested_mode": args.mode,
-        "effective_mode": effective_mode,
-        "tools": tools,
-        "created_at": datetime.now().isoformat(timespec="seconds"),
-    }
+    meta = state.initial_meta(
+        run_id=args.run_id,
+        repo=repo,
+        plan=plan_path,
+        claude_model=args.claude_model,
+        max_rounds=args.max_review_rounds,
+        tools=tools,
+        requested_mode=args.mode,
+        effective_mode=effective_mode,
+    )
+    state.save(run_dir, meta)
+
+    safe_plan = sanitize_status_lines(plan_text)
 
     write_text(
         run_dir / "01-plan.md",
         f"""# Teamflow Plan
 
-```json
-{json.dumps(metadata, indent=2)}
-```
+State machine in `meta.json`. See `references/protocol.md`.
 
 ## Source Plan
 
-{plan_text}
+{safe_plan}
 """,
     )
 
@@ -109,18 +141,9 @@ Status: PENDING
 Repo: `{repo}`
 Plan: `{plan_path}`
 
-## Codex Instructions
-
-Implement the plan from `01-plan.md`, run focused QA, and replace this file with:
-
-- Goal
-- Changed files
-- Diff summary
-- QA evidence
-- Known risks
-- Blockers
-
-Do not commit until Claude writes `APPROVED` or `LGTM` in `05-final-approval.md`.
+Follow `references/protocol.md` § Review packet. Replace this file with the
+required fields. Emit a fenced ```json block matching
+`references/schema.json`. Do not commit unless the user authorized.
 """,
     )
 
@@ -213,6 +236,12 @@ def main() -> int:
         effective_mode = "agentflow" if tools["agentflow"] and tools["claude"] else "handoff"
 
     run_dir = run_dir_for(repo, args.run_id)
+    if run_dir.exists() and any(run_dir.iterdir()) and not args.force:
+        raise SystemExit(
+            f"Run dir already exists: {run_dir}\n"
+            f"Pass --force to overwrite, or pick a fresh --run-id."
+        )
+
     write_handoff_files(run_dir, repo, plan_path, plan_text, args, tools, effective_mode)
 
     pipeline_path = None
