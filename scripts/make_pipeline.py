@@ -4,11 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
 
 RUNS_ROOT = Path.home() / ".codex" / "teamflow" / "runs"
+
+
+def run_dir_for(repo: Path, run_id: str) -> Path:
+    # Match teamflow.py: include 6-char SHA1 of full repo path so two
+    # repos with the same basename but different locations get distinct
+    # default run dirs.
+    repo_hash = hashlib.sha1(str(repo).encode("utf-8")).hexdigest()[:6]
+    return RUNS_ROOT / f"{repo.name}-{repo_hash}-{run_id}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -146,7 +155,7 @@ def main() -> int:
     if args.run_id is None:
         args.run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     if args.output is None:
-        args.output = str(RUNS_ROOT / f"{repo.name}-{args.run_id}" / "pipeline.py")
+        args.output = str(run_dir_for(repo, args.run_id) / "pipeline.py")
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
