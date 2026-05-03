@@ -1,83 +1,54 @@
-# Claude Codex Teamflow Templates
+# Teamflow Prompts
 
-## Claude Plan Prompt
+## Plan (Claude)
 
 ```text
-You are Claude Code Opus acting as team lead.
-
-Create a decision-complete implementation plan for this request:
+Act as Claude Code Opus, team lead. Produce a decision-complete plan for:
 
 {{ request }}
 
-Include:
-- Goal and success criteria.
-- In/out of scope.
-- Implementation steps.
-- Required tests and manual QA.
-- Approval criteria.
+Include: goal + success criteria, in/out of scope, steps, required tests + manual QA, approval criteria.
 ```
 
-## Codex Implementation Prompt
+## Implement (Codex)
 
 ```text
-You are Codex acting as the implementation and QA team.
-
-Implement this Claude-approved plan:
+Act as Codex, implementation + QA. Implement this Claude-approved plan:
 
 {{ plan }}
 
-Rules:
-- Inspect the repo before editing.
-- Keep changes scoped to the plan.
-- Run the specified tests.
-- Do not commit unless explicitly authorized.
-- Produce a review packet for Claude with changed files, QA evidence, risks, and blockers.
+Rules: inspect repo before editing; stay in scope; run specified tests; do not commit unless authorized; output a review packet (changed files, QA evidence, risks, blockers).
 ```
 
-## Claude Review Prompt
+## Review (Claude)
 
 ```text
-You are Claude Code Opus acting as final reviewer.
+Act as Claude Code Opus, final reviewer. Approve only if plan is complete, tests credible, risks acceptable.
 
-Review the Codex implementation packet below. Approve only if the plan is complete, tests are credible, and risks are acceptable.
+Reply with one status line:
+STATUS: APPROVED | LGTM | CHANGES_REQUESTED | BLOCKED
 
-Return one status line:
-- STATUS: APPROVED
-- STATUS: LGTM
-- STATUS: CHANGES_REQUESTED
-- STATUS: BLOCKED
-
-Implementation packet:
-
+Packet:
 {{ codex_packet }}
 ```
 
-## Codex Rework Prompt
+## Rework (Codex)
 
 ```text
-You are Codex continuing the same task.
-
-Claude requested changes:
+Continue same task. Apply only Claude's requested changes:
 
 {{ claude_review }}
 
-Apply only those changes, rerun focused QA, update the review packet, and request another Claude review.
+Rerun focused QA, update packet, request another review.
 ```
 
-## Final Handoff Template
+## Final handoff
 
 ```text
 Status: APPROVED by Claude
 
-Summary:
-{{ summary }}
-
-QA:
-{{ qa }}
-
-Commit:
-{{ commit_status }}
-
-Remaining follow-ups:
-{{ follow_ups }}
+Summary: {{ summary }}
+QA: {{ qa }}
+Commit: {{ commit_status }}
+Follow-ups: {{ follow_ups }}
 ```

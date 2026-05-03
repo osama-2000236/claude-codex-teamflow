@@ -1,63 +1,46 @@
-# Claude Codex Teamflow Protocol
+# Teamflow Protocol
 
 ## Roles
 
-- Claude Code Opus: team lead, planner, reviewer, final approver.
-- Codex: full-stack implementation team and QA engineer.
-- User: product owner and authority for scope, commits, destructive actions, and production access.
+- Claude Code Opus — team lead, planner, reviewer, final approver.
+- Codex — implementation and QA.
+- User — scope, commit authority, destructive actions, prod access.
 
-## State Machine
+## States
 
-1. `PLAN_READY`: Claude or the user provides a concrete plan.
-2. `IMPLEMENTING`: Codex makes changes and runs QA.
-3. `READY_FOR_REVIEW`: Codex writes a review packet.
-4. `CHANGES_REQUESTED`: Claude returns concrete modifications; Codex loops back to implementation.
-5. `BLOCKED`: Claude identifies a blocker that needs user input or external access.
-6. `APPROVED`: Claude says `APPROVED` or `LGTM`; Codex may proceed to commit only if the user granted commit permission.
+1. `PLAN_READY` — Claude or user supplies concrete plan.
+2. `IMPLEMENTING` — Codex edits + runs QA.
+3. `READY_FOR_REVIEW` — Codex publishes review packet.
+4. `CHANGES_REQUESTED` — Claude returns concrete fixes; loop to (2).
+5. `BLOCKED` — Claude flags missing decision/access; halt + surface.
+6. `APPROVED` — Claude said `APPROVED` or `LGTM`. Commit only if user pre-authorized.
 
-## Review Packet
+## Review packet (required fields)
 
-Every Claude review request must include:
+- Goal — one paragraph.
+- Plan source — file path or quoted summary.
+- Changed files — grouped by subsystem.
+- Diff summary — behavior-level, not raw patch.
+- QA evidence — commands, pass/fail, skipped checks.
+- Risks — migrations, data changes, user-visible changes.
+- Questions — only blockers Codex could not resolve from the repo.
 
-- Goal: one paragraph.
-- Plan source: file path or quoted plan summary.
-- Changed files: grouped by subsystem.
-- Diff summary: behavior-level, not a raw patch dump.
-- QA evidence: commands, pass/fail result, and skipped checks.
-- Risk notes: known risks, migrations, data changes, or user-visible changes.
-- Questions: only blockers that Codex could not resolve from the repo.
+## Claude response contract
 
-## Claude Response Contract
-
-Claude should respond with exactly one status line:
+Exactly one status line:
 
 ```text
 STATUS: APPROVED
-```
-
-or:
-
-```text
 STATUS: LGTM
-```
-
-or:
-
-```text
 STATUS: CHANGES_REQUESTED
-```
-
-or:
-
-```text
 STATUS: BLOCKED
 ```
 
-For `CHANGES_REQUESTED`, Claude must list required fixes as actionable bullets. For `BLOCKED`, Claude must name the missing decision, access, or evidence.
+- `CHANGES_REQUESTED` — list required fixes as actionable bullets.
+- `BLOCKED` — name the missing decision, access, or evidence.
 
-## Approval Rules
+## Approval rules
 
-- Passing tests does not equal approval.
-- A friendly review summary does not equal approval unless it includes `APPROVED` or `LGTM`.
-- Codex must repeat implementation and QA after every `CHANGES_REQUESTED` response.
-- Codex stops after `max-review-rounds` and reports unresolved review items.
+- Friendly review prose ≠ approval without `APPROVED`/`LGTM`.
+- Codex re-implements + re-QAs after every `CHANGES_REQUESTED`.
+- After `max-review-rounds`, stop and report unresolved items.
