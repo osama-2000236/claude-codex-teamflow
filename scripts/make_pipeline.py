@@ -109,8 +109,12 @@ git -C "{{REPO}}" diff --stat
         task_id="claude_review",
         tools="read_only",
         timeout_seconds=1800,
+        # Requires AgentFlow with OutputRegexCriterion support. If your install
+        # only knows ``output_contains``, replace with
+        # ``{{"kind": "output_contains", "value": "STATUS: APPROVED"}}`` and
+        # instruct the reviewer to use APPROVED only.
         success_criteria=[
-            {{"kind": "output_contains", "value": "STATUS: APPROVED"}},
+            {{"kind": "output_regex", "value": r"^STATUS:\\s+(APPROVED|LGTM)\\b"}},
         ],
         prompt="""
 You are Claude Code Opus acting as final reviewer.
@@ -127,8 +131,9 @@ QA summary:
 {{{{ nodes.qa_summary.output }}}}
 QA
 
-Return exactly one status line as the FINAL line of your reply. In this pipeline, use APPROVED for approval (LGTM is accepted only in handoff mode):
+Return exactly one status line as the FINAL line of your reply:
 - STATUS: APPROVED
+- STATUS: LGTM
 - STATUS: CHANGES_REQUESTED
 - STATUS: BLOCKED
 

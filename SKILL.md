@@ -29,6 +29,8 @@ Artifacts: `${TEAMFLOW_RUNS:-$HOME\.codex\teamflow\runs}\<repo>-<hash>-<ts>\` co
 
 Resolve from PATH or `$HOME\.agentflow\.venv\Scripts\agentflow.exe`. Validate generated pipelines with `agentflow validate <pipeline.py>`. Skip `agentflow doctor` and `check-local` on Windows (path-escaping bugs).
 
+Generated pipelines use the `output_regex` success criterion to accept both `STATUS: APPROVED` and `STATUS: LGTM`. Requires AgentFlow with `OutputRegexCriterion` (patch in this repo's `agentflow-patch/` if upstream lacks it). Fallback: replace with `output_contains: "STATUS: APPROVED"` and instruct the reviewer to use `APPROVED` only.
+
 Modes: `handoff` (no Claude CLI, files only) · `agentflow` (executable pipeline) · `auto` (pick agentflow if present).
 
 ## Hard rules

@@ -1,0 +1,111 @@
+From d3ef309a56c8f288acdd91d66f0eaa23fc6f37bd Mon Sep 17 00:00:00 2001
+From: Osama Abujarad <1202883@student.birzeit.edu>
+Date: Mon, 4 May 2026 02:13:08 +0300
+Subject: [PATCH] specs/success: add OutputRegexCriterion
+
+Adds an ``output_regex`` success criterion that matches a Python ``re``
+pattern against the captured node output. Two switches:
+- ``case_sensitive`` (default True): authors usually express case
+  intentionally in regex.
+- ``multiline`` (default True): so ``^``/``$`` anchor on line boundaries,
+  matching the common case of asserting a status line appears on its own
+  line in an agent's reply.
+
+Existing criteria (``output_contains``, ``file_*``) are unchanged and the
+new variant is wired into the discriminated union in
+``specs.SuccessCriterion`` and the dispatcher in
+``success.evaluate_success``. Invalid regex patterns surface as a
+non-passing criterion with the ``re.error`` message embedded, instead of
+crashing evaluation.
+
+Motivation: pipelines that gate on multiple terminal markers (e.g.
+``STATUS: APPROVED`` or ``STATUS: LGTM``) currently can't express the OR
+because ``success_criteria`` evaluates with AND semantics across the list.
+``output_regex`` lets a single criterion handle the alternation.
+---
+ agentflow/specs.py   | 21 ++++++++++++++++++++-
+ agentflow/success.py | 16 ++++++++++++++++
+ 2 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/agentflow/specs.py b/agentflow/specs.py
+index 29053e7..7b6f30c 100644
+--- a/agentflow/specs.py
++++ b/agentflow/specs.py
+@@ -484,6 +484,21 @@ class OutputContainsCriterion(BaseModel):
+     case_sensitive: bool = False
+ 
+ 
++class OutputRegexCriterion(BaseModel):
++    """Regex match against the captured node output.
++
++    ``value`` is a Python ``re`` pattern. ``multiline`` enables ``re.MULTILINE``
++    so ``^``/``$`` match line boundaries (useful when checking that a status
++    line appears anywhere in the agent's reply). ``case_sensitive`` defaults
++    to ``True`` because regex authors typically express case explicitly.
++    """
++
++    kind: Literal["output_regex"] = "output_regex"
++    value: str
++    case_sensitive: bool = True
++    multiline: bool = True
++
++
+ class FileExistsCriterion(BaseModel):
+     kind: Literal["file_exists"] = "file_exists"
+     path: str
+@@ -502,7 +517,11 @@ class FileNonEmptyCriterion(BaseModel):
+ 
+ 
+ SuccessCriterion = Annotated[
+-    OutputContainsCriterion | FileExistsCriterion | FileContainsCriterion | FileNonEmptyCriterion,
++    OutputContainsCriterion
++    | OutputRegexCriterion
++    | FileExistsCriterion
++    | FileContainsCriterion
++    | FileNonEmptyCriterion,
+     Field(discriminator="kind"),
+ ]
+ 
+diff --git a/agentflow/success.py b/agentflow/success.py
+index 9016f5a..8e27f68 100644
+--- a/agentflow/success.py
++++ b/agentflow/success.py
+@@ -1,5 +1,6 @@
+ from __future__ import annotations
+ 
++import re
+ from pathlib import Path
+ 
+ from agentflow.specs import (
+@@ -9,6 +10,7 @@ from agentflow.specs import (
+     NodeResult,
+     NodeSpec,
+     OutputContainsCriterion,
++    OutputRegexCriterion,
+ )
+ 
+ 
+@@ -45,6 +47,20 @@ def evaluate_success(node: NodeSpec, result: NodeResult, working_dir: Path) -> t
+             needle = criterion.value if criterion.case_sensitive else criterion.value.lower()
+             ok = needle in haystack
+             messages.append(f"output_contains({criterion.value!r})={ok}")
++        elif isinstance(criterion, OutputRegexCriterion):
++            flags = 0
++            if not criterion.case_sensitive:
++                flags |= re.IGNORECASE
++            if criterion.multiline:
++                flags |= re.MULTILINE
++            try:
++                ok = re.search(criterion.value, output, flags) is not None
++            except re.error as exc:
++                ok = False
++                messages.append(f"output_regex({criterion.value!r}): invalid pattern ({exc})")
++                passed = passed and ok
++                continue
++            messages.append(f"output_regex({criterion.value!r})={ok}")
+         elif isinstance(criterion, FileExistsCriterion):
+             ok = (working_dir / criterion.path).exists()
+             messages.append(f"file_exists({criterion.path})={ok}")
+-- 
+2.52.0.windows.1
+
