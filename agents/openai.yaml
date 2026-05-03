@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude ↔ Codex Teamflow"
+  short_description: "Plan, implement, review, repeat"
+  default_prompt: "Use $claude-codex-teamflow to run a Claude-led Codex implementation and review loop."
