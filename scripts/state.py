@@ -31,7 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+SKILL_VERSION = "0.3.0"
 
 STATES = (
     "PLAN_READY",
@@ -87,6 +88,7 @@ def initial_meta(
     ts = now_iso()
     return {
         "schema_version": SCHEMA_VERSION,
+        "skill_version": SKILL_VERSION,
         "run_id": run_id,
         "repo": str(repo),
         "plan": str(plan),

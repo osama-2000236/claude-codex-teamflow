@@ -20,6 +20,8 @@ from pathlib import Path
 
 # Local helper.
 SCRIPT_DIR = Path(__file__).resolve().parent
+SKILL_DIR = SCRIPT_DIR.parent
+SCHEMA_SRC = SKILL_DIR / "references" / "schema.json"
 sys.path.insert(0, str(SCRIPT_DIR))
 import state  # noqa: E402  (sibling module: scripts/state.py)
 
@@ -142,8 +144,9 @@ Repo: `{repo}`
 Plan: `{plan_path}`
 
 Follow `references/protocol.md` § Review packet. Replace this file with the
-required fields. Emit a fenced ```json block matching
-`references/schema.json`. Do not commit unless the user authorized.
+required fields. Emit a fenced ```json block matching `./schema.json` (also
+mirrored at `references/schema.json` in the skill install). Do not commit
+unless the user authorized.
 """,
     )
 
@@ -191,8 +194,19 @@ Claude approval must be copied here before Codex commits or moves to the next ph
 """,
     )
 
+    # Copy review-packet schema next to the handoff files so Codex can
+    # validate locally without resolving the skill install path.
+    if SCHEMA_SRC.is_file():
+        shutil.copyfile(SCHEMA_SRC, run_dir / "schema.json")
 
-def generate_pipeline(run_dir: Path, repo: Path, plan_path: Path, args: argparse.Namespace) -> Path:
+
+def generate_pipeline(
+    run_dir: Path,
+    repo: Path,
+    plan_path: Path,
+    args: argparse.Namespace,
+    agentflow_path: str | None,
+) -> Path:
     script = Path(__file__).with_name("make_pipeline.py")
     cmd = [
         sys.executable,
@@ -210,8 +224,34 @@ def generate_pipeline(run_dir: Path, repo: Path, plan_path: Path, args: argparse
         "--output",
         str(run_dir / "pipeline.py"),
     ]
-    subprocess.run(cmd, check=True)
-    return run_dir / "pipeline.py"
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(
+            "make_pipeline.py failed:\n"
+            f"  cmd: {' '.join(cmd)}\n"
+            f"  stdout: {exc.stdout}\n"
+            f"  stderr: {exc.stderr}"
+        ) from exc
+
+    pipeline = run_dir / "pipeline.py"
+
+    # Best-effort validation: catch broken pipelines at gen time, not run
+    # time. Skip silently if AgentFlow is unavailable.
+    if agentflow_path and Path(agentflow_path).exists():
+        result = subprocess.run(
+            [agentflow_path, "validate", str(pipeline)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise SystemExit(
+                f"Generated pipeline failed `agentflow validate`:\n"
+                f"  pipeline: {pipeline}\n"
+                f"  stderr: {result.stderr.strip() or result.stdout.strip()}"
+            )
+
+    return pipeline
 
 
 def main() -> int:
@@ -233,7 +273,9 @@ def main() -> int:
 
     effective_mode = args.mode
     if args.mode == "auto":
-        effective_mode = "agentflow" if tools["agentflow"] and tools["claude"] else "handoff"
+        # Pipeline gen only writes a Python file; it does not invoke
+        # the Claude CLI. Require AgentFlow only.
+        effective_mode = "agentflow" if tools["agentflow"] else "handoff"
 
     run_dir = run_dir_for(repo, args.run_id)
     if run_dir.exists() and any(run_dir.iterdir()) and not args.force:
@@ -246,7 +288,9 @@ def main() -> int:
 
     pipeline_path = None
     if effective_mode == "agentflow":
-        pipeline_path = generate_pipeline(run_dir, repo, plan_path, args)
+        pipeline_path = generate_pipeline(
+            run_dir, repo, plan_path, args, tools["agentflow"]
+        )
 
     print(json.dumps(
         {
